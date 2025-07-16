@@ -194,7 +194,23 @@ std::shared_ptr<TableNode> IdentifierResolver::tryResolveTableIdentifier(const I
 
     if (!storage_lock)
         storage_lock = storage->lockForShare(context->getInitialQueryId(), context->getSettingsRef()[Setting::lock_acquire_timeout]);
-    auto storage_snapshot = storage->getStorageSnapshot(storage->getInMemoryMetadataPtr(), context);
+    
+    // System tables should not call getStorageSnapshot() during identifier resolution.
+    /// This prevents deadlocks when background operations (merges/mutations) hold data_parts_mutex_.
+    ///
+    /// System tables use specialized methods during execution (e.g., getStatus())
+    /// that don't require heavy locks. Creating a minimal metadata-only snapshot during analysis
+    /// preserves the intended lock-free behavior of system tables.
+    StorageSnapshotPtr storage_snapshot;
+    if (storage->isSystemStorage())
+    {
+        storage_snapshot = std::make_shared<StorageSnapshot>(*storage, storage->getInMemoryMetadataPtr());
+    }
+    else
+    {
+        storage_snapshot = storage->getStorageSnapshot(storage->getInMemoryMetadataPtr(), context);
+    }
+    
     auto result = std::make_shared<TableNode>(std::move(storage), std::move(storage_lock), std::move(storage_snapshot));
     if (is_temporary_table)
         result->setTemporaryTableName(table_name);
