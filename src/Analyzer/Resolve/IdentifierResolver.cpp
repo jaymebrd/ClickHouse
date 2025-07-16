@@ -196,7 +196,7 @@ std::shared_ptr<TableNode> IdentifierResolver::tryResolveTableIdentifier(const I
         storage_lock = storage->lockForShare(context->getInitialQueryId(), context->getSettingsRef()[Setting::lock_acquire_timeout]);
     
     // System tables should not call getStorageSnapshot() during identifier resolution.
-    /// This prevents deadlocks when background operations (merges/mutations) hold data_parts_mutex_.
+    /// This prevents lock contention when background operations (merges/mutations) hold data_parts_mutex_.
     ///
     /// System tables use specialized methods during execution (e.g., getStatus())
     /// that don't require heavy locks. Creating a minimal metadata-only snapshot during analysis
